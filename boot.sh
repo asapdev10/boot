@@ -20,6 +20,7 @@ NEED_FD=false
 NEED_GIT=false
 NEED_1PASSWORD=false
 NEED_OPENCODE=false
+NEED_DOCKER=false
 
 # 1. Check if GitHub CLI is already installed
 if command -v gh >/dev/null 2>&1; then
@@ -110,8 +111,22 @@ else
   NEED_OPENCODE=true
 fi
 
+# Check if Docker is already installed
+if command -v docker >/dev/null 2>&1; then
+  ok "Docker is already installed: $(docker --version)"
+  # Also check for docker compose
+  if docker compose version >/dev/null 2>&1; then
+    ok "Docker Compose is already installed: $(docker compose version)"
+  else
+    warn "Docker is installed but Docker Compose plugin is missing"
+    NEED_DOCKER=true
+  fi
+else
+  NEED_DOCKER=true
+fi
+
 # Exit if everything is already installed
-if [[ "$NEED_GH" == false && "$NEED_CHEZMOI" == false && "$NEED_LAZYGIT" == false && "$NEED_CARGO" == false && "$NEED_BOB" == false && "$NEED_FZF" == false && "$NEED_YAZI" == false && "$NEED_RIPGREP" == false && "$NEED_FD" == false && "$NEED_GIT" == false && "$NEED_1PASSWORD" == false && "$NEED_OPENCODE" == false ]]; then
+if [[ "$NEED_GH" == false && "$NEED_CHEZMOI" == false && "$NEED_LAZYGIT" == false && "$NEED_CARGO" == false && "$NEED_BOB" == false && "$NEED_FZF" == false && "$NEED_YAZI" == false && "$NEED_RIPGREP" == false && "$NEED_FD" == false && "$NEED_GIT" == false && "$NEED_1PASSWORD" == false && "$NEED_OPENCODE" == false && "$NEED_DOCKER" == false ]]; then
   ok "All tools are already installed!"
   exit 0
 fi
@@ -427,6 +442,54 @@ if [[ "$NEED_OPENCODE" == true ]]; then
     ok "opencode installed successfully: $(opencode --version)"
   else
     error "opencode installation appears to have failed."
+    exit 1
+  fi
+fi
+
+# 16. Install Docker if needed
+if [[ "$NEED_DOCKER" == true ]]; then
+  info "Installing Docker…"
+  
+  # Install prerequisites
+  sudo apt update
+  sudo apt install -y ca-certificates curl gnupg
+  
+  # Add Docker's official GPG key
+  sudo install -m 0755 -d /etc/apt/keyrings
+  tmpkey="$(mktemp)"
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$tmpkey"
+  sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg < "$tmpkey"
+  rm -f "$tmpkey"
+  sudo chmod a+r /etc/apt/keyrings/docker.gpg
+  
+  # Set up the repository
+  echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  
+  # Install Docker Engine, CLI, containerd, and Docker Compose plugin
+  info "Updating apt cache…"
+  sudo apt update
+  sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  
+  # Add current user to docker group to run docker without sudo
+  info "Adding user to docker group…"
+  sudo usermod -aG docker "$USER"
+  
+  if command -v docker >/dev/null 2>&1; then
+    ok "Docker installed successfully: $(docker --version)"
+    
+    if docker compose version >/dev/null 2>&1; then
+      ok "Docker Compose installed successfully: $(docker compose version)"
+    else
+      warn "Docker Compose plugin may not be available yet"
+    fi
+    
+    warn "You may need to log out and back in for docker group membership to take effect"
+    info "Alternatively, run: newgrp docker"
+  else
+    error "Docker installation appears to have failed."
     exit 1
   fi
 fi
