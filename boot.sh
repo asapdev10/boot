@@ -19,6 +19,7 @@ NEED_RIPGREP=false
 NEED_FD=false
 NEED_GIT=false
 NEED_1PASSWORD=false
+NEED_OPENCODE=false
 
 # 1. Check if GitHub CLI is already installed
 if command -v gh >/dev/null 2>&1; then
@@ -102,8 +103,15 @@ else
   NEED_1PASSWORD=true
 fi
 
+# Check if opencode is already installed
+if command -v opencode >/dev/null 2>&1; then
+  ok "opencode is already installed: $(opencode --version)"
+else
+  NEED_OPENCODE=true
+fi
+
 # Exit if everything is already installed
-if [[ "$NEED_GH" == false && "$NEED_CHEZMOI" == false && "$NEED_LAZYGIT" == false && "$NEED_CARGO" == false && "$NEED_BOB" == false && "$NEED_FZF" == false && "$NEED_YAZI" == false && "$NEED_RIPGREP" == false && "$NEED_FD" == false && "$NEED_GIT" == false && "$NEED_1PASSWORD" == false ]]; then
+if [[ "$NEED_GH" == false && "$NEED_CHEZMOI" == false && "$NEED_LAZYGIT" == false && "$NEED_CARGO" == false && "$NEED_BOB" == false && "$NEED_FZF" == false && "$NEED_YAZI" == false && "$NEED_RIPGREP" == false && "$NEED_FD" == false && "$NEED_GIT" == false && "$NEED_1PASSWORD" == false && "$NEED_OPENCODE" == false ]]; then
   ok "All tools are already installed!"
   exit 0
 fi
@@ -386,6 +394,39 @@ if [[ "$NEED_1PASSWORD" == true ]]; then
     ok "1Password CLI installed successfully: $(op --version)"
   else
     error "1Password CLI installation appears to have failed."
+    exit 1
+  fi
+fi
+
+# 15. Install opencode if needed
+if [[ "$NEED_OPENCODE" == true ]]; then
+  info "Installing opencode…"
+  
+  # Ensure cargo is available (either just installed or was already present)
+  if ! command -v cargo >/dev/null 2>&1; then
+    # Try to source cargo env in case it was just installed
+    if [[ -f "$HOME/.cargo/env" ]]; then
+      source "$HOME/.cargo/env"
+    fi
+    
+    if ! command -v cargo >/dev/null 2>&1; then
+      error "cargo is required to install opencode but is not available."
+      exit 1
+    fi
+  fi
+  
+  # Install opencode using cargo
+  cargo install --git https://github.com/opencodeiiit/opencode-cli.git
+  
+  # Add cargo bin to PATH if not already there
+  if [[ ":$PATH:" != *":$HOME/.cargo/bin:"* ]]; then
+    export PATH="$HOME/.cargo/bin:$PATH"
+  fi
+  
+  if command -v opencode >/dev/null 2>&1; then
+    ok "opencode installed successfully: $(opencode --version)"
+  else
+    error "opencode installation appears to have failed."
     exit 1
   fi
 fi
